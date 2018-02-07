@@ -25,102 +25,91 @@
 using namespace std;
 
 string s;
-
+const int block_size = 128;
 
 void reconfigure(char * file_name)
 {
-	ifstream file(file_name, ios::binary);
-	fstream show("output.txt", ios::binary | ios::out);
-	char level;
-	char H[128];
-	for (int i = 0; i < 128; i++)
-		H[i] = 0;
-	if (file.is_open())
-	{
-		while (!file.eof()) {
-			file.read(&level, sizeof(level));
-			s.push_back(level);
-			if (s.size() == 128 || file.eof())
-			{
-				while (s.size() < 128)
-					s.push_back(0);
+	ifstream in_file(file_name, ios::binary);
+	fstream out_file("output.txt", ios::binary | ios::out);
 
+	string H;
+	if (in_file.is_open())
+	{
+		while (!in_file.eof()) {
+			char byte;
+			in_file.read(&byte, sizeof(byte));
+			s.push_back(byte);
+			if (s.size() == block_size || in_file.eof())
+			{
+				while (s.size() < block_size)
+					s.push_back(0);
 				for (int i = 0; i < s.size(); i++)
-				{
-					show.write(&s[i], sizeof(char));
-					H[i] = (s[i] | H[i]);
-				}
-				string HH = sw::sha512::calculate(H);
-				for (int i = 0; i < 128; i++)
-				{
-					H[i] = HH[i];
-					show.write(&H[i], sizeof(char));
-				}
+					out_file.write(&s[i], sizeof(char));
+				s += H;
+				H = sw::sha512::calculate(s);
+				for (int i = 0; i < block_size; i++)
+					out_file.write(&H[i], sizeof(char));
 				s.clear();
 			}
 		}
-		file.close();
-		show.close();
+		in_file.close();
+		out_file.close();
 	}
 	else cout << "Unable to open file";
 }
 
-void read_and_check(char * file_name)
+void check_and_recover(char * file_name)
 {
-	ifstream file(file_name, ios::binary);
-	fstream show("output.mp3", ios::binary | ios::out);
-	char level;
+	ifstream in_file(file_name, ios::binary);
+	fstream out_file("output.mp3", ios::binary | ios::out);
+
+	string H;
 	int cnt = 0;
-	char H[128], HH[128];
-	for (int i = 0; i < 128; i++)
+	if (in_file.is_open())
 	{
-		HH[i] = 0;
-		H[i] = 0;
-	}
-	if (file.is_open())
-	{
-		while (!file.eof()) {
-			file.read(&level, sizeof(level));
-			s.push_back(level);
-			if (s.size() == 128 || file.eof())
+		while (!in_file.eof()) {
+			char byte;
+			in_file.read(&byte, sizeof(byte));
+			s.push_back(byte);
+			if (s.size() == block_size || in_file.eof())
 			{
 				cnt++;
-
+				while (s.size() < block_size)
+					s.push_back(0);
 				if (cnt % 2 == 1)
 				{
 					for (int i = 0; i < s.size(); i++)
-					{
-						show.write(&s[i], sizeof(char));
-						H[i] = (s[i] | H[i]);
-					}
-					string HH = sw::sha512::calculate(H);
-					for (int i = 0; i < 128; i++)
-						H[i] = HH[i];
-					s.clear();
+						out_file.write(&s[i], sizeof(char));
+					s += H;
+					H = sw::sha512::calculate(s);
 				}
 				else
-				{
-					string s2;
-					for (int i = 0; i < 128; i++)
-						s2.push_back(H[i]);
-					if (s != s2)
+					if (s != H)
 					{
-						cout << "EEEE";
+						throw "Bad data";
 						return;
 					}
-				}
 				s.clear();
 			}
 		}
-		file.close();
-		show.close();
+		in_file.close();
+		out_file.close();
 	}
 	else cout << "Unable to open file";
 }
 
-int main()
+int main(int argc, char* argv[])
 {
-	reconfigure("White_Power_-_Skinhed_(iPleer.fm).mp3");
-	read_and_check("output.txt");
+	if (argc < 2)
+	{
+		cout << "Bad number of arguments";
+	}
+	else
+	{
+		if (!strcmp(argv[1], "-c"))
+			reconfigure(argv[2]);
+		if (!strcmp(argv[1], "-uc"))
+			check_and_recover(argv[2]);
+	}
 	return 0;
 }
